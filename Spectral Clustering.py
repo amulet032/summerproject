@@ -17,6 +17,7 @@ def preprocess_image(image_path, target_size=(150, 150)):
     """
     image = np.array(Image.open(image_path).convert("L"))  # Convert to grayscale
     image = cv2.resize(image, target_size)  # Resize to target size
+    
     return image
 
 
@@ -47,7 +48,6 @@ def create_weight_matrix(image, n_neighbors, sigma_pixel, sigma_geom):
             col_idx.append(neighbor_idx)
             weights.append(weight)
 
-    # Ensure row_idx, col_idx, and weights are numpy arrays and flattened
     row_idx = np.array(row_idx).flatten()
     col_idx = np.array(col_idx).flatten()
     weights = np.array(weights).flatten()
@@ -57,65 +57,68 @@ def create_weight_matrix(image, n_neighbors, sigma_pixel, sigma_geom):
 
     # Symmetrize the weight matrix
     W = (W + W.T) / 2
-
+    
     return W
 
-def auto_elbow_with_euclidean_ratio(image, max_clusters=6):
+def auto_elbow_with_euclidean_ratio(image, max_clusters=10):
     """
-    AutoElbow method to determine the optimal number of clusters.
+    AutoElbow method to determine the optimal number of clusters using Euclidean Ratio.
+
     """
+
     inertias = []
     cluster_range = range(1, max_clusters + 1)
 
-    # Calculate inertia for each k (cluster count)
     for k in cluster_range:
         kmeans = KMeans(n_clusters=k, random_state=42)
         kmeans.fit(image)
         inertias.append(kmeans.inertia_)
 
-    x_norm = (np.array(list(cluster_range)) - np.min(cluster_range)) / (np.max(cluster_range) - np.min(cluster_range))
-    y_norm = (np.array(inertias) - np.min(inertias)) / (np.max(inertias) - np.min(inertias))
+    x_norm = (np.array(cluster_range) - min(cluster_range)) / (max(cluster_range) - min(cluster_range))
+    y_norm = (np.array(inertias) - min(inertias)) / (max(inertias) - min(inertias))
 
-    a_k = np.sqrt(x_norm ** 2 + y_norm ** 2)  # Distance to the origin
-    b_k = np.sqrt((x_norm - 1) ** 2 + (y_norm - 1) ** 2)  # Distance to the max point
-    c_k = y_norm  # Distance to the x-axis
+    a_k = np.sqrt(x_norm**2 + y_norm**2)
+    b_k = np.sqrt((x_norm - 1)**2 + (y_norm - 1)**2)
+    c_k = y_norm
 
-    f_k = b_k / (a_k + c_k)
+    f_k = b_k / (a_k + c_k)  # Euclidean Ratio
 
+    # Find the optimal k (elbow point)
     optimal_idx = np.argmax(f_k)
     optimal_k = cluster_range[optimal_idx]
 
     plt.figure(figsize=(10, 6))
-    plt.plot(cluster_range, inertias, label="Evaluation Metric Curve")
-    plt.scatter(optimal_k, inertias[optimal_idx], color="red", label=f"Optimal k: {optimal_k}", zorder=5)
+    plt.plot(cluster_range, inertias, marker='o', label="Inertia Curve")
+    plt.scatter(optimal_k, inertias[optimal_idx], color="red", s=200, label=f"Optimal k: {optimal_k}", zorder=5)
     plt.title("AutoElbow Method with Euclidean Ratio")
-    plt.xlabel("Number of Clusters")
+    plt.xlabel("Number of Clusters (k)")
     plt.ylabel("Inertia")
     plt.legend()
-    plt.grid()
+    plt.grid(True)
     plt.show()
 
     return optimal_k
 
 def normalized_spectral_clustering_rw(W, num_clusters):
     """
-    Perform spectral clustering using the random walk Laplacian.
+    Spectral clustering using the random walk Laplacian.
     """
     degrees = np.array(W.sum(axis=1)).flatten()
-    D_inv = diags(1.0 / degrees)  # Inverse degree matrix
+    D_inv = diags(1.0 / degrees)
 
-    # Compute the random walk Laplacian
     P = D_inv @ W
     L_rw = csr_matrix(np.eye(P.shape[0])) - P  # Random walk Laplacian: I - P
     eigenvalues, eigenvectors = eigsh(L_rw, k=num_clusters, which='SM')
+    print("Laplacian Matrix")
+    print(L_rw)
+    print("eigenvectors")
+    print(eigenvectors)
 
-    # Perform k-means clustering on the eigenvectors
-    eigenvectors = eigenvectors[:, :num_clusters]  # Select the first num_clusters eigenvectors
+    eigenvectors = eigenvectors[:, :num_clusters]
     kmeans = KMeans(n_clusters=num_clusters, random_state=42)
     labels = kmeans.fit_predict(eigenvectors)
 
     return labels
-
 
 def plot_spectral_clustering(image, labels, image_shape, num_clusters,sigma_pixel, sigma_geom):
     """
@@ -145,10 +148,10 @@ def plot_spectral_clustering(image, labels, image_shape, num_clusters,sigma_pixe
     plt.show()
 
 def main():
-    image_path = "296059.jpg"
+    image_path = "15088.jpg"
     n_neighbors = 8
-    sigma_pixel = 3
-    sigma_geom = 8
+    sigma_pixel = 6
+    sigma_geom = 10
 
     image = preprocess_image(image_path)
     optimal_k = auto_elbow_with_euclidean_ratio(image, max_clusters=6)
