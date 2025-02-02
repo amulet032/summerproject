@@ -1,8 +1,9 @@
 
-from PIL import Image
+
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from PIL import Image
 from scipy.sparse import csr_matrix
 from scipy.sparse.linalg import eigsh
 from sklearn.cluster import KMeans
